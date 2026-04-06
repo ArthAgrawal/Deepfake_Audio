@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceGuard - Deepfake Audio Detector</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg:linear-gradient(135deg, #f5f3f0 0%, #ede8e3 100%);--surface:#fdfcfb;--surface2:#f9f7f5;--border:#e8dfd8;
+            --text:#0f0d0b;--text-muted:#7a6f66;--text-faint:#b8b0a5;
+            --real:#1d7b5e;--real-bg:linear-gradient(135deg, #e0f5ed 0%, #d1eee5 100%);--real-border:#7dd3b8;
+            --fake:#c11e23;--fake-bg:linear-gradient(135deg, #ffe8eb 0%, #ffd6dc 100%);--fake-border:#ff9aaa;
+            --accent:#d4915d;--accent-light:linear-gradient(135deg, #faded2 0%, #f5d9c5 100%);
+        }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        html{scroll-behavior:smooth;}
+        body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+        header{padding:24px 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--surface);box-shadow:0 2px 12px rgba(0,0,0,0.05);}
+        .logo{display:flex;align-items:center;gap:12px;}
+        .logo-icon{width:40px;height:40px;background:linear-gradient(135deg, #2d2420 0%, #1a1613 100%);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 12px rgba(45,36,32,0.2);}
+        .logo-text{font-family:'DM Mono',monospace;font-weight:600;font-size:1.2rem;letter-spacing:-0.5px;color:var(--text);}
+        .logo-text span{color:var(--accent);font-weight:700;}
+        .status-pill{font-family:'DM Mono',monospace;font-size:0.75rem;padding:8px 16px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text-muted);display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+        .status-dot{width:8px;height:8px;border-radius:50%;background:var(--text-faint);transition:all 0.3s;}
+        .status-dot.active{background:var(--real);box-shadow:0 0 12px rgba(29,123,94,0.6);animation:pulse 1.2s infinite;}
+        .status-dot.danger{background:var(--fake);box-shadow:0 0 12px rgba(193,30,35,0.6);animation:pulse 0.6s infinite;}
+        @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.4;transform:scale(1.3);}}
+        .waveform-section{background:var(--surface);border-bottom:1px solid var(--border);padding:20px 48px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.5);}
+        .waveform-label{font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;font-weight:600;}
+        #waveform{width:100%;height:80px;display:block;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 100%);box-shadow:0 8px 24px rgba(0,0,0,0.08);}
+        .main{flex:1;display:grid;grid-template-columns:1fr 360px;gap:0;}
+        .chunks-panel{padding:40px 48px;border-right:1px solid var(--border);overflow-y:auto;background:linear-gradient(to bottom, rgba(255,255,255,0.4), transparent);}
+        .chunks-panel::-webkit-scrollbar{width:6px;}
+        .chunks-panel::-webkit-scrollbar-track{background:transparent;}
+        .chunks-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+        .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;}
+        .panel-title{font-size:0.75rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);font-weight:700;}
+        .chunk-count{font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text-faint);background:var(--surface2);padding:4px 12px;border-radius:99px;}
+        .controls{display:flex;gap:12px;margin-bottom:32px;}
+        .btn{padding:13px 28px;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;transition:all 0.2s cubic-bezier(0.2,0,0.38,0.9);display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.08);position:relative;overflow:hidden;}
+        .btn::before{content:'';position:absolute;top:50%;left:50%;width:0;height:0;background:rgba(255,255,255,0.3);border-radius:50%;transform:translate(-50%,-50%);transition:width 0.6s,height 0.6s;}
+        .btn:active::before{width:300px;height:300px;}
+        .btn-primary{background:linear-gradient(135deg, #2d2420 0%, #1a1613 100%);color:white;}
+        .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(29,36,32,0.2);}
+        .btn-primary:active{transform:translateY(0);}
+        .btn-primary:disabled{background:var(--border);color:var(--text-faint);cursor:not-allowed;transform:none;box-shadow:none;}
+        .btn-danger{background:linear-gradient(135deg, #c11e23 0%, #a01419 100%);color:white;border:none;}
+        .btn-danger:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(193,30,35,0.2);}
+        .btn-danger:active{transform:translateY(0);}
+        .btn-danger:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+        .btn-ghost{background:transparent;color:var(--text-muted);border:1.5px solid var(--border);box-shadow:none;}
+        .btn-ghost:hover{background:var(--surface2);box-shadow:0 4px 12px rgba(0,0,0,0.04);}
+        .chunks-timeline{display:flex;flex-direction:column;gap:12px;}
+        .chunk-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:16px 18px;display:grid;grid-template-columns:52px 1fr auto auto;align-items:center;gap:16px;opacity:0;transform:translateY(12px) scale(0.95);animation:slideIn 0.4s cubic-bezier(0.2,0,0.38,0.9) forwards;box-shadow:0 4px 12px rgba(0,0,0,0.05);transition:all 0.3s;}
+        .chunk-card:hover{box-shadow:0 8px 20px rgba(0,0,0,0.1);transform:translateY(-2px);}
+        @keyframes slideIn{to{opacity:1;transform:translateY(0) scale(1);}}
+        .chunk-card.processing{border-color:#d4915d;background:var(--accent-light);box-shadow:0 6px 20px rgba(212,145,93,0.15);}
+        .chunk-card.result-real{border-color:var(--real-border);background:var(--real-bg);box-shadow:0 6px 20px rgba(29,123,94,0.1);}
+        .chunk-card.result-fake{border-color:var(--fake-border);background:var(--fake-bg);box-shadow:0 6px 20px rgba(193,30,35,0.1);}
+        .chunk-card.result-cut{border:2px solid var(--fake);background:var(--fake-bg);box-shadow:0 0 0 3px rgba(193,30,35,0.15),0 6px 20px rgba(193,30,35,0.15);}
+        .chunk-number{font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text-faint);text-align:center;background:var(--surface2);width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-direction:column;}
+        .chunk-num-big{font-size:1.2rem;font-weight:700;color:var(--text);display:block;}
+        .chunk-body{min-width:0;}
+        .chunk-status{font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;}
+        .chunk-detail{font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .chunk-bars{display:flex;flex-direction:column;gap:6px;width:140px;}
+        .mini-bar-row{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:0.63rem;color:var(--text-muted);}
+        .mini-bar-label{width:32px;font-weight:600;}
+        .mini-bar-bg{flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);}
+        .mini-bar-fill{height:100%;border-radius:99px;transition:width 0.6s cubic-bezier(0.2,0,0.38,0.9);box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+        .mini-bar-fill.real-fill{background:linear-gradient(90deg, var(--real), #4fa07a);}
+        .mini-bar-fill.fake-fill{background:linear-gradient(90deg, var(--fake), #e74c52);}
+        .mini-pct{width:32px;text-align:right;font-size:0.63rem;font-weight:600;}
+        .verdict-badge{font-family:'DM Mono',monospace;font-size:0.68rem;font-weight:700;padding:6px 12px;border-radius:8px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.08);}
+        .badge-real{background:var(--real-bg);color:var(--real);border:1.5px solid var(--real-border);}
+        .badge-fake{background:var(--fake-bg);color:var(--fake);border:1.5px solid var(--fake-border);}
+        .badge-processing{background:var(--accent-light);color:var(--accent);border:1.5px solid var(--accent);}
+        .badge-cut{background:linear-gradient(135deg, #c11e23, #a01419);color:white;border:none;}
+        .empty-state{text-align:center;padding:80px 20px;color:var(--text-faint);}
+        .empty-icon{font-size:3rem;margin-bottom:16px;opacity:0.3;}
+        .empty-text{font-size:0.95rem;line-height:1.8;font-weight:500;}
+        .live-panel{padding:40px 32px;display:flex;flex-direction:column;gap:28px;background:linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.3) 100%);border-left:1px solid var(--border);}
+        .verdict-card{border:1.5px solid var(--border);border-radius:14px;padding:28px 24px;text-align:center;transition:all 0.3s;background:var(--bg);box-shadow:0 8px 24px rgba(0,0,0,0.06);}
+        .verdict-card.real{border-color:var(--real-border);background:var(--real-bg);box-shadow:0 8px 24px rgba(29,123,94,0.12);}
+        .verdict-card.fake{border-color:var(--fake-border);background:var(--fake-bg);box-shadow:0 8px 24px rgba(193,30,35,0.12);}
+        .verdict-eyebrow{font-family:'DM Mono',monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:12px;font-weight:700;}
+        .verdict-big{font-size:3.2rem;font-weight:800;letter-spacing:-2px;line-height:1;color:var(--text-faint);transition:all 0.3s;margin:8px 0;}
+        .verdict-big.real{color:var(--real);}
+        .verdict-big.fake{color:var(--fake);}
+        .verdict-class{font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--text-muted);margin-top:8px;font-weight:600;}
+        .verdict-conf{font-size:1.6rem;font-weight:700;margin-top:6px;color:var(--text);}
+        .section-label{font-family:'DM Mono',monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:12px;font-weight:700;}
+        .streak-dots{display:flex;gap:10px;}
+        .streak-dot{flex:1;height:8px;border-radius:99px;background:var(--border);transition:all 0.3s;box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);}
+        .streak-dot.filled{background:linear-gradient(90deg, var(--fake), #e74c52);box-shadow:0 2px 8px rgba(193,30,35,0.4);}
+        .score-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+        .score-name{font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text-muted);width:40px;font-weight:700;}
+        .score-bar-bg{flex:1;height:10px;background:var(--border);border-radius:99px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);}
+        .score-bar-fill{height:100%;border-radius:99px;transition:width 0.6s cubic-bezier(0.2,0,0.38,0.9);box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+        .score-bar-fill.real-bar{background:linear-gradient(90deg, var(--real), #4fa07a);}
+        .score-bar-fill.fake-bar{background:linear-gradient(90deg, var(--fake), #e74c52);}
+        .score-val{font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text-muted);width:36px;text-align:right;font-weight:700;}
+        .cut-banner{display:none;background:linear-gradient(135deg, #c11e23, #a01419);color:white;padding:18px 24px;border-radius:12px;text-align:center;margin-bottom:20px;animation:pulse-border 0.8s infinite alternate;box-shadow:0 8px 24px rgba(193,30,35,0.25);}
+        .cut-banner.visible{display:block;}
+        @keyframes pulse-border{from{box-shadow:0 8px 24px rgba(193,30,35,0.25);}to{box-shadow:0 8px 32px rgba(193,30,35,0.4);}}
+        .cut-title{font-weight:700;font-size:1rem;margin-bottom:4px;}
+        .cut-sub{font-size:0.78rem;opacity:0.9;font-family:'DM Mono',monospace;}
+        .modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,13,11,0.6);backdrop-filter:blur(6px);z-index:100;align-items:center;justify-content:center;animation:fadeIn 0.3s;}
+        .modal-overlay.visible{display:flex;}
+        @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+        .modal{background:var(--surface);border-radius:20px;padding:40px;width:90%;max-width:680px;max-height:80vh;overflow-y:auto;box-shadow:0 32px 80px rgba(0,0,0,0.15);animation:slideUp 0.4s cubic-bezier(0.2,0,0.38,0.9);}
+        @keyframes slideUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+        .modal-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;}
+        .modal-title{font-size:1.5rem;font-weight:700;letter-spacing:-0.5px;}
+        .modal-subtitle{font-size:0.85rem;color:var(--text-muted);margin-top:4px;font-weight:600;}
+        .modal-close{background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;width:36px;height:36px;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:all 0.2s;}
+        .modal-close:hover{background:var(--border);transform:rotate(90deg);}
+        .summary-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px;}
+        .stat-box{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:20px 16px;text-align:center;transition:all 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.04);}
+        .stat-box:hover{transform:translateY(-4px);box-shadow:0 8px 20px rgba(0,0,0,0.08);}
+        .stat-num{font-size:2rem;font-weight:800;letter-spacing:-0.8px;}
+        .stat-num.danger{color:var(--fake);}
+        .stat-num.safe{color:var(--real);}
+        .stat-label{font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:6px;font-weight:700;}
+        .summary-timeline{display:flex;flex-direction:column;gap:10px;}
+        .summary-chunk{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;background:var(--bg);border:1.5px solid var(--border);transition:all 0.3s;}
+        .summary-chunk:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);}
+        .summary-chunk.was-cut{border-color:var(--fake-border);background:var(--fake-bg);box-shadow:0 4px 12px rgba(193,30,35,0.08);}
+        .summary-chunk.was-fake{border-color:var(--fake-border);background:var(--fake-bg);box-shadow:0 4px 12px rgba(193,30,35,0.08);}
+        .summary-chunk.was-real{border-color:var(--real-border);background:var(--real-bg);box-shadow:0 4px 12px rgba(29,123,94,0.08);}
+        .sum-num{font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--text-muted);width:32px;font-weight:700;}
+        .sum-body{flex:1;}
+        .sum-verdict{font-size:0.88rem;font-weight:600;}
+        .sum-detail{font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text-muted);margin-top:2px;}
+        .cut-flag{font-family:'DM Mono',monospace;font-size:0.68rem;background:linear-gradient(135deg, #c11e23, #a01419);color:white;padding:5px 12px;border-radius:6px;white-space:nowrap;font-weight:700;box-shadow:0 2px 6px rgba(193,30,35,0.3);}
+        .spinner{display:inline-block;width:14px;height:14px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;}
+        @keyframes spin{to{transform:rotate(360deg);}}
+        .chart-container{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:18px;margin-bottom:20px;max-width:100%;height:260px;position:relative;box-shadow:0 4px 12px rgba(0,0,0,0.05);}
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <div class="logo-icon">&#128737;</div>
+        <div class="logo-text">Voice<span>Guard</span></div>
+    </div>
+    <div class="status-pill">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Idle</span>
+    </div>
+</header>
+
+<div class="waveform-section">
+    <div class="waveform-label">Live Audio Input</div>
+    <canvas id="waveform"></canvas>
+</div>
+
+<div class="main">
+    <div class="chunks-panel">
+        <div class="panel-header">
+            <div class="panel-title">Chunk Analysis</div>
+            <div class="chunk-count" id="chunkCount">0 chunks</div>
+        </div>
+        <div class="controls">
+            <button class="btn btn-primary" id="startBtn" onclick="startListening()">&#9654; Start Call</button>
+            <button class="btn btn-danger" id="stopBtn" onclick="stopListening(false)" disabled>&#9209; End Call</button>
+            <button class="btn btn-ghost" id="summaryBtn" onclick="showSummary()" style="display:none">Summary</button>
+        </div>
+        <div class="cut-banner" id="cutBanner">
+            <div class="cut-title">&#9888; Call Terminated</div>
+            <div class="cut-sub">Deepfake audio detected with high confidence</div>
+        </div>
+        <div class="chunks-timeline" id="chunksTimeline">
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">&#127897;</div>
+                <div class="empty-text">Press Start Call and speak.<br>Each 3-second chunk will appear here.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="live-panel">
+        <div>
+            <div class="section-label">Current Verdict</div>
+            <div class="verdict-card" id="verdictCard">
+                <div class="verdict-eyebrow">Latest Result</div>
+                <div class="verdict-big" id="verdictBig">&#8212;</div>
+                <div class="verdict-class" id="verdictClass">Waiting for audio...</div>
+                <div class="verdict-conf" id="verdictConf"></div>
+            </div>
+        </div>
+        <div>
+            <div class="section-label">Fake Streak (cuts at 2)</div>
+            <div class="streak-dots">
+                <div class="streak-dot" id="sd0"></div>
+                <div class="streak-dot" id="sd1"></div>
+            </div>
+        </div>
+        <div>
+            <div class="section-label">Confidence Trend</div>
+            <div class="chart-container">
+                <canvas id="confidenceChart"></canvas>
+            </div>
+        </div>
+        <div>
+            <div class="section-label">Confidence Scores</div>
+            <div id="scoresContainer"></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title">Call Summary</div>
+                <div class="modal-subtitle" id="modalSubtitle"></div>
+            </div>
+            <button class="modal-close" onclick="closeSummary()">&#x2715;</button>
+        </div>
+        <div class="summary-stats" id="summaryStats"></div>
+        <div class="summary-timeline" id="summaryTimeline"></div>
+    </div>
+</div>
+
+<script>
+const SCORE_CLASSES = ["REAL", "FAKE"];
+let mediaRecorder, stream, animationId, ws, confidenceChart;
+let chunkInterval = null, chunkLog = [];
+let chunkIndex = 0, callActive = false, currentChunkIdx = 0, activeChunk = null;
+let chartData = {labels: [], realConf: [], fakeConf: []};
+
+const canvas = document.getElementById('waveform');
+const canvasCtx = canvas.getContext('2d');
+
+function initConfidenceChart() {
+    var chartCanvas = document.getElementById('confidenceChart');
+    if(!chartCanvas) return;
+    if(confidenceChart) confidenceChart.destroy();
+    confidenceChart = new Chart(chartCanvas, {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                {label:'Real %',data:chartData.realConf,borderColor:'var(--real)',backgroundColor:'rgba(45,106,79,0.1)',tension:0.3,fill:true,pointRadius:4,pointBackgroundColor:'var(--real)'},
+                {label:'Fake %',data:chartData.fakeConf,borderColor:'var(--fake)',backgroundColor:'rgba(193,18,31,0.1)',tension:0.3,fill:true,pointRadius:4,pointBackgroundColor:'var(--fake)'}
+            ]
+        },
+        options: {
+            responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:true,position:'top',labels:{font:{size:11,family:"'DM Mono',monospace"},color:'var(--text-muted)',boxWidth:12,padding:8}}},
+            scales:{y:{beginAtZero:true,max:100,grid:{color:'var(--border)',drawBorder:false},ticks:{color:'var(--text-faint)',font:{size:10,family:"'DM Mono',monospace"},callback:function(v){return v+'%'}}},x:{grid:{display:false,drawBorder:false},ticks:{color:'var(--text-faint)',font:{size:10,family:"'DM Mono',monospace"}}}}
+        }
+    });
+}
+
+// Init binary score bars
+const sc = document.getElementById('scoresContainer');
+SCORE_CLASSES.forEach(function(name) {
+    var isReal = name === 'REAL';
+    sc.innerHTML += '<div class="score-row"><span class="score-name">'+name+'</span><div class="score-bar-bg"><div class="score-bar-fill '+(isReal?'real-bar':'fake-bar')+'" id="bar-'+name+'" style="width:0%"></div></div><span class="score-val" id="val-'+name+'">0%</span></div>';
+});
+
+function drawWaveform(analyser) {
+    var bufferLength = analyser.frequencyBinCount;
+    var dataArray = new Uint8Array(bufferLength);
+    function resize() {
+        canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+        canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+        canvasCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    function draw() {
+        animationId = requestAnimationFrame(draw);
+        analyser.getByteTimeDomainData(dataArray);
+        var w = canvas.offsetWidth, h = canvas.offsetHeight;
+        canvasCtx.fillStyle = '#faf9f7';
+        canvasCtx.fillRect(0, 0, w, h);
+        canvasCtx.strokeStyle = '#e2ddd6'; canvasCtx.lineWidth = 0.5;
+        canvasCtx.beginPath(); canvasCtx.moveTo(0,h/2); canvasCtx.lineTo(w,h/2); canvasCtx.stroke();
+        canvasCtx.lineWidth = 1.5; canvasCtx.strokeStyle = '#c77d3e';
+        canvasCtx.beginPath();
+        var sliceWidth = w / bufferLength, x = 0;
+        for (var i = 0; i < bufferLength; i++) {
+            var v = dataArray[i] / 128.0, y = (v * h) / 2;
+            i === 0 ? canvasCtx.moveTo(x,y) : canvasCtx.lineTo(x,y);
+            x += sliceWidth;
+        }
+        canvasCtx.lineTo(w, h/2); canvasCtx.stroke();
+    }
+    draw();
+}
+
+function drawFlatLine() {
+    var w = canvas.offsetWidth, h = canvas.offsetHeight;
+    canvasCtx.fillStyle = '#faf9f7'; canvasCtx.fillRect(0,0,w,h);
+    canvasCtx.strokeStyle = '#e2ddd6'; canvasCtx.lineWidth = 0.5;
+    canvasCtx.beginPath(); canvasCtx.moveTo(0,h/2); canvasCtx.lineTo(w,h/2); canvasCtx.stroke();
+}
+
+function setStatus(text, state) {
+    document.getElementById('statusText').textContent = text;
+    var dot = document.getElementById('statusDot');
+    dot.className = 'status-dot' + (state==='active'?' active':state==='danger'?' danger':'');
+}
+
+function fullReset() {
+    chunkLog=[]; chunkIndex=0; currentChunkIdx=0; activeChunk=null; callActive=false;chartData={labels:[],realConf:[],fakeConf:[]};
+    document.getElementById('chunksTimeline').innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-icon">&#127897;</div><div class="empty-text">Press Start Call and speak.<br>Each 3-second chunk will appear here.</div></div>';
+    document.getElementById('cutBanner').className = 'cut-banner';
+    document.getElementById('summaryBtn').style.display = 'none';
+    document.getElementById('verdictBig').className = 'verdict-big';
+    document.getElementById('verdictBig').innerHTML = '&mdash;';
+    document.getElementById('verdictClass').textContent = 'Waiting for audio...';
+    document.getElementById('verdictConf').textContent = '';
+    document.getElementById('verdictCard').className = 'verdict-card';
+    document.getElementById('chunkCount').textContent = '0 chunks';
+    for (var i=0;i<2;i++) document.getElementById('sd'+i).className='streak-dot';
+    SCORE_CLASSES.forEach(function(name) {
+        var b=document.getElementById('bar-'+name), v=document.getElementById('val-'+name);
+        if(b) b.style.width='0%'; if(v) v.textContent='0%';
+    });
+    setStatus('Idle','');
+}
+
+async function startListening() {
+    fullReset(); callActive=true;
+    var protocol=location.protocol==='https:'?'wss:':'ws:';
+    ws = new WebSocket(protocol+'//'+location.host+'/ws');
+    ws.onmessage = function(event) {
+        var data=JSON.parse(event.data);
+        if(data.error){setStatus('Error: '+data.error,'');return;}
+        handleResult(data);
+    };
+    ws.onerror = function(){setStatus('WS Error','');};
+    ws.onclose = function(){if(callActive) setStatus('Connection lost','');};
+
+    stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    var audioCtx=new AudioContext(), source=audioCtx.createMediaStreamSource(stream);
+    var analyser=audioCtx.createAnalyser(); analyser.fftSize=2048;
+    source.connect(analyser); drawWaveform(analyser);
+
+    document.getElementById('startBtn').disabled=true;
+    document.getElementById('stopBtn').disabled=false;
+    setStatus('Listening','active');
+    initConfidenceChart();
+    startNewChunk();
+    chunkInterval = setInterval(function(){
+        sendCurrentChunk();
+        if(callActive) startNewChunk();
+    }, 3000);
+}
+
+function startNewChunk() {
+    chunkIndex++; currentChunkIdx=chunkIndex;
+    addChunkCard(chunkIndex,'processing',null);
+    document.getElementById('chunkCount').textContent=chunkIndex+' chunk'+(chunkIndex>1?'s':'');
+    mediaRecorder=new MediaRecorder(stream);
+    var chunkState={idx:chunkIndex,recorder:mediaRecorder,chunks:[]};
+    mediaRecorder.ondataavailable=function(e){
+        if(e.data&&e.data.size>0) chunkState.chunks.push(e.data);
+    };
+    mediaRecorder.start();
+    activeChunk=chunkState;
+}
+
+function sendCurrentChunk() {
+    if(!activeChunk||!activeChunk.recorder||activeChunk.recorder.state==='inactive') return;
+    var chunkState=activeChunk;
+    activeChunk=null;
+    chunkState.recorder.onstop = async function() {
+        if(!chunkState.chunks.length) return;
+        var blob=new Blob(chunkState.chunks,{type:chunkState.recorder.mimeType||'audio/webm'});
+        if(blob.size===0) return;
+        var buffer=await blob.arrayBuffer();
+        var bytes=new Uint8Array(buffer), binary='';
+        bytes.forEach(function(b){binary+=String.fromCharCode(b);});
+        var base64=btoa(binary);
+        if(ws&&ws.readyState===WebSocket.OPEN)
+            ws.send(JSON.stringify({idx:chunkState.idx,audio:base64}));
+    };
+    try{chunkState.recorder.requestData();}catch(_e){}
+    chunkState.recorder.stop();
+}
+
+function upsertChunkLog(entry) {
+    var i = chunkLog.findIndex(function(c) { return c.idx === entry.idx; });
+    if (i >= 0) {
+        chunkLog[i] = entry;
+    } else {
+        chunkLog.push(entry);
+    }
+    chunkLog.sort(function(a, b) { return a.idx - b.idx; });
+}
+
+function insertCardInOrder(card, idx) {
+    var timeline = document.getElementById('chunksTimeline');
+    var empty = document.getElementById('emptyState');
+    if (empty) empty.remove();
+
+    var cards = timeline.querySelectorAll('.chunk-card[id^="chunk-"]');
+    var inserted = false;
+    for (var i = 0; i < cards.length; i++) {
+        var existingId = cards[i].id || '';
+        var existingIdx = parseInt(existingId.replace('chunk-', ''), 10);
+        if (!isNaN(existingIdx) && existingIdx > idx) {
+            timeline.insertBefore(card, cards[i]);
+            inserted = true;
+            break;
+        }
+    }
+    if (!inserted) timeline.appendChild(card);
+}
+
+function addChunkCard(idx, state, data) {
+    var existing=document.getElementById('chunk-'+idx);
+    if(existing) existing.remove();
+    var card=document.createElement('div');
+    card.id='chunk-'+idx;
+    card.className='chunk-card '+(state==='processing'?'processing':state==='real'?'result-real':state==='cut'?'result-cut':'result-fake');
+    var statusHtml='', barsHtml='', badgeHtml='';
+    if(state==='processing'){
+        statusHtml='<div class="chunk-status"><span class="spinner"></span> Processing...</div><div class="chunk-detail">Analyzing chunk '+idx+'...</div>';
+        badgeHtml='<span class="verdict-badge badge-processing">&mdash;</span>';
+    } else {
+        var isFake=data.verdict==='FAKE', isCut=data.cut_call, scores=data.all_scores||{};
+        statusHtml='<div class="chunk-status">'+(isFake?'&#9888; Fake Detected':'&#10003; Genuine Voice')+'</div><div class="chunk-detail">'+data.verdict+' &middot; '+data.confidence+'% conf</div>';
+        badgeHtml=isCut?'<span class="verdict-badge badge-cut">CUT</span>':'<span class="verdict-badge '+(isFake?'badge-fake':'badge-real')+'">'+data.verdict+'</span>';
+        barsHtml='<div class="chunk-bars">'+[['REAL','real-fill'],['FAKE','fake-fill']].map(function(pair){
+            var val=scores[pair[0]]||0;
+            return '<div class="mini-bar-row"><span class="mini-bar-label">'+pair[0]+'</span><div class="mini-bar-bg"><div class="mini-bar-fill '+pair[1]+'" style="width:'+val+'%"></div></div><span class="mini-pct">'+val+'%</span></div>';
+        }).join('')+'</div>';
+    }
+    card.innerHTML='<div class="chunk-number"><span class="chunk-num-big">'+idx+'</span><span style="font-family:&quot;DM Mono&quot;,monospace;font-size:0.65rem;color:var(--text-faint)">#</span></div><div class="chunk-body">'+statusHtml+'</div>'+barsHtml+'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">'+badgeHtml+'</div>';
+    insertCardInOrder(card, idx);
+    card.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function handleResult(data) {
+    var isFake=data.verdict==='FAKE';
+    var state=data.cut_call?'cut':isFake?'fake':'real';
+    var idx=data.chunk_idx||currentChunkIdx;
+    addChunkCard(idx,state,data);
+    upsertChunkLog(Object.assign({idx:idx,state:state},data));
+    var big=document.getElementById('verdictBig');
+    big.textContent=data.verdict;
+    big.className='verdict-big '+(isFake?'fake':'real');
+    document.getElementById('verdictClass').textContent=isFake?'AI-generated voice detected':'Human voice detected';
+    document.getElementById('verdictConf').textContent=data.confidence+'%';
+    document.getElementById('verdictCard').className='verdict-card '+(isFake?'fake':'real');
+    for(var i=0;i<2;i++) document.getElementById('sd'+i).className='streak-dot'+(i<data.fake_streak?' filled':'');
+    var scores=data.all_scores||{};
+    Object.keys(scores).forEach(function(name){
+        var b=document.getElementById('bar-'+name), v=document.getElementById('val-'+name);
+        if(b) b.style.width=scores[name]+'%';
+        if(v) v.textContent=scores[name]+'%';
+    });
+    chartData.labels.push('Chunk '+idx);
+    chartData.realConf.push(scores['REAL']||0);
+    chartData.fakeConf.push(scores['FAKE']||0);
+    if(confidenceChart){confidenceChart.data.labels=chartData.labels;confidenceChart.data.datasets[0].data=chartData.realConf;confidenceChart.data.datasets[1].data=chartData.fakeConf;confidenceChart.update();}
+    if(data.cut_call){
+        document.getElementById('cutBanner').className='cut-banner visible';
+        setStatus('Call Terminated','danger');
+        stopListening(true);
+    }
+}
+
+function stopListening(auto) {
+    callActive=false;
+    clearInterval(chunkInterval); chunkInterval=null;
+    if(activeChunk&&activeChunk.recorder&&activeChunk.recorder.state!=='inactive') {
+        try{activeChunk.recorder.requestData();}catch(_e){}
+        activeChunk.recorder.stop();
+        activeChunk=null;
+    }
+    if(stream) stream.getTracks().forEach(function(t){t.stop();});
+    if(ws&&ws.readyState===WebSocket.OPEN) ws.close();
+    cancelAnimationFrame(animationId);
+    document.getElementById('startBtn').disabled=false;
+    document.getElementById('stopBtn').disabled=true;
+    if(!auto) setStatus('Idle','');
+    drawFlatLine();
+    if(chunkLog.length>0) document.getElementById('summaryBtn').style.display='block';
+}
+
+function showSummary() {
+    var total=chunkLog.length;
+    var fakeCount=chunkLog.filter(function(c){return c.verdict==='FAKE';}).length;
+    var realCount=total-fakeCount;
+    document.getElementById('modalSubtitle').textContent=total+' chunks analyzed · ~'+(total*3)+' seconds of audio';
+    document.getElementById('summaryStats').innerHTML=
+        '<div class="stat-box"><div class="stat-num">'+total+'</div><div class="stat-label">Total Chunks</div></div>'+
+        '<div class="stat-box"><div class="stat-num safe">'+realCount+'</div><div class="stat-label">Real</div></div>'+
+        '<div class="stat-box"><div class="stat-num danger">'+fakeCount+'</div><div class="stat-label">Fake</div></div>';
+    document.getElementById('summaryTimeline').innerHTML=chunkLog.map(function(c){
+        var isCut=c.cut_call, isFake=c.verdict==='FAKE';
+        return '<div class="summary-chunk '+(isCut?'was-cut':isFake?'was-fake':'was-real')+'">'+
+            '<div class="sum-num">#'+c.idx+'</div>'+
+            '<div class="sum-body"><div class="sum-verdict">'+(isFake?'&#9888; Fake':'&#10003; Real')+' — '+c.confidence+'% confidence</div>'+
+            '<div class="sum-detail">'+((c.idx-1)*3)+'s – '+(c.idx*3)+'s</div></div>'+
+            (isCut?'<span class="cut-flag">CALL CUT HERE</span>':'')+
+            '</div>';
+    }).join('');
+    document.getElementById('modalOverlay').className='modal-overlay visible';
+}
+
+function closeSummary(){document.getElementById('modalOverlay').className='modal-overlay';}
+document.getElementById('modalOverlay').addEventListener('click',function(e){if(e.target===this)closeSummary();});
+</script>
+</body>
+</html>
