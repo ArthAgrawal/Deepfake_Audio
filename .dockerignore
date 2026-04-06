@@ -1,0 +1,16 @@
+.git
+.gitignore
+.vscode
+__pycache__
+*.pyc
+*.pyo
+*.log
+*.sock
+.env
+.env.local
+deepfake_env/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.log
+**/.DS_Store

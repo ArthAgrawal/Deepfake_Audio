@@ -50,7 +50,7 @@ A real-time web application that detects AI-generated (deepfake) audio in phone 
 
 For public deployment (Railway, Render, Docker, etc.), see [DEPLOYMENT.md](DEPLOYMENT.md).
 
-**Recommended:** Railway.app (free tier, 0-config)
+**Recommended:** Render.com with the included [Dockerfile](Dockerfile) and [render.yaml](render.yaml)
 
 ---
 

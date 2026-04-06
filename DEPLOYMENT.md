@@ -77,35 +77,17 @@ web: uvicorn main:app --host 0.0.0.0 --port $PORT
 
 #### 3. **Render.com**
 - Connect your GitHub repo
-- Set `start command`: `python -m uvicorn main:app --host 0.0.0.0 --port 8000`
-- Add environment variable: `FFMPEG_PATH=/usr/bin/ffmpeg`
+- Render will read the included [render.yaml](render.yaml)
+- The service uses the included [Dockerfile](Dockerfile)
+- Add environment variable: `FFMPEG_PATH=/usr/bin/ffmpeg` if you need to override the default
 
 #### 4. **Docker** (For Any Cloud)
 
-Create `Dockerfile`:
-```dockerfile
-FROM python:3.11-slim
+Use the repo root [Dockerfile](Dockerfile).
 
-WORKDIR /app
+It installs FFmpeg, installs dependencies from `deepfake_detector/requirements.txt`, and starts Uvicorn on port `8000`.
 
-# Install FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy app
-COPY deepfake_detector/ .
-
-# Expose port
-EXPOSE 8000
-
-# Run server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-Then deploy to DockerHub, AWS ECS, Google Cloud Run, Azure Container Instances, etc.
+Then deploy to DockerHub, AWS ECS, Google Cloud Run, Azure Container Instances, or any Docker host.
 
 #### 5. **DigitalOcean App Platform**
 - Create app from GitHub repo
@@ -201,7 +183,7 @@ Use HTTPS in production:
 | DigitalOcean | $4/month | Droplet cost; add app platform fee |
 | AWS | Pay-as-you-go | Free tier 750h/month (EC2 t2.micro) |
 
-**Best Choice for Beginners:** Railway or Render
+**Best Choice for Beginners:** Render or Railway
 
 ---
 
