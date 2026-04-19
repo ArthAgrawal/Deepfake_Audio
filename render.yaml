@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: voiceguard-deepfake-detector
-    env: docker
-    plan: free
-    autoDeploy: true
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /
