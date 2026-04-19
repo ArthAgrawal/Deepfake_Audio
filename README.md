@@ -1,6 +1,9 @@
 # VoiceGuard - Deepfake Audio Detector
 
-A real-time web application that detects AI-generated (deepfake) audio in phone calls and live conversations. Uses Hugging Face's wav2vec2 model to classify audio as real or synthetic with per-chunk analysis and automatic termination on detection.
+A real-time web application that detects AI-generated (deepfake) audio in phone calls and live conversations. Used to classify audio as real or synthetic with per-chunk analysis and automatic termination on detection.
+
+
+<img width="1244" height="1017" alt="image" src="https://github.com/user-attachments/assets/fe6301a4-822a-431e-8e1c-4786fbf1e7df" />
 
 ## Features
 
@@ -10,7 +13,6 @@ Real-time Processing
 - Live confidence trend visualization
 
 Intelligent Detection
-- Wav2vec2-large-xlsr model: Multilingual deepfake detection
 - Confidence threshold: 80% for flagged detections
 - Automatic call termination: Triggered after 2 consecutive high-confidence fake detections
 
@@ -78,7 +80,7 @@ http://localhost:8000
 
 ### Architecture
 
-Frontend (Browser) -> WebSocket -> Backend (FastAPI) -> Model (wav2vec2) -> Results
+Frontend (Browser) -> WebSocket -> Backend (FastAPI) -> Model -> Results
 
 ### Processing Flow
 
@@ -128,15 +130,6 @@ Deepfake_Audio/
 └── LICENSE                        # MIT License
 ```
 
-## Model Information
-
-Model: Gustking/wav2vec2-large-xlsr-deepfake-audio-classification
-Source: Hugging Face Hub
-Architecture: Wav2Vec2 with Large XLSR pre-training
-Languages: Multilingual support
-Training Data: ASVspoof 2021, deepfake audio datasets
-Output: Binary classification (real/fake) with confidence scores
-Inference Speed: ~0.5 seconds per 3-second chunk (CPU)
 
 ## Deployment
 
@@ -160,15 +153,6 @@ docker run -p 8000:8000 -e FFMPEG_PATH=/usr/bin/ffmpeg deepfake-detector
 4. HF Spaces auto-deploys from Dockerfile
 5. Public URL generated automatically
 
-### Other Platforms
-
-The Dockerfile supports deployment to any container platform:
-- Render.com
-- Railway.app
-- AWS ECS
-- Google Cloud Run
-- Azure Container Instances
-- DigitalOcean App Platform
 
 ## API Endpoints
 
